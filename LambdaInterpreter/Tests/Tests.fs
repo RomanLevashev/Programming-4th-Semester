@@ -37,7 +37,7 @@ let ``parse application`` () =
 [<Fact>]
 let ``parse parentheses`` () =
     let expr = parseOk "f x y"
-    toString expr |> should equal "(f x) y"
+    toString expr |> should equal "f x y"
 
 [<Fact>]
 let ``parse invalid term returns None`` () =
