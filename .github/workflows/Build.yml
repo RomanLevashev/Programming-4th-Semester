@@ -9,9 +9,9 @@ jobs:
         with:
           dotnet-version: '10.x'
       - name: Build
-        run: find . -name "*.sln" -exec dotnet build {} \;
+        run: find . -name "*.slnx" -exec dotnet build {} \;
       - name: Run tests
-        run: find . -name "*.sln" -exec dotnet test {} \;
+        run: find . -name "*.slnx" -exec dotnet test {} \;
 
   build-windows:
     runs-on: windows-latest
@@ -21,7 +21,7 @@ jobs:
         with:
           dotnet-version: '10.x'
       - name: Build
-        run: Get-ChildItem -Recurse -Filter *.sln | ForEach-Object { dotnet build $_.FullName }
+        run: Get-ChildItem -Recurse -Filter *.slnx | ForEach-Object { dotnet build $_.FullName }
       - name: Run tests
-        run: Get-ChildItem -Recurse -Filter *.sln | ForEach-Object { dotnet test $_.FullName }
+        run: Get-ChildItem -Recurse -Filter *.slnx | ForEach-Object { dotnet test $_.FullName }
 
