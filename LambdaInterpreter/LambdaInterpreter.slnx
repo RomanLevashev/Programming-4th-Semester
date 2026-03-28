@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="LambdaInterpreter/LambdaInterpreter.fsproj" />
+  <Project Path="Tests/Tests.fsproj" Id="311f0e9c-49b4-412f-bba6-9a5eb4bc894a" />
+</Solution>
