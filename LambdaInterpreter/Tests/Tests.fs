@@ -1,4 +1,4 @@
-﻿// <copyright file="Program.fs" company="Roman Levashev">
+﻿// <copyright file="Tests.fs" company="Roman Levashev">
 // Copyright (c) Roman Levashev. All rights reserved.
 // Licensed under the MIT License.
 // </copyright>

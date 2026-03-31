@@ -7,75 +7,42 @@ module LambdaInterpreter
 
 open System
 
-
-/// Represents a lambda calculus expression.
-///
-/// Supported expression forms:
-/// - variable: x
-/// - abstraction: \x.body
-/// - application: f x
-///
-/// The internal representation uses:
-/// - Var(name) for a variable,
-/// - Abs(parameter, body) for an abstraction,
-/// - App(left, right) for an application.
+/// <summary>
+/// Lambda calculus expression.
+/// </summary>
 type Expr = 
+    /// <summary>Variable.</summary>
     | Var of string
+
+    /// <summary>Abstraction.</summary>
     | Abs of string * Expr
+
+    /// <summary>Application.</summary>
     | App of Expr * Expr
 
-/// Represents the result of normalization with a step limit.
-///
-/// Cases:
-/// - NormalForm(expr): a normal form was reached within the limit;
-/// - LimitReached(expr): the limit was reached before a normal form was found,
-///   and expr is the last term obtained.
+/// <summary>
+/// Result of normalization with a step limit.
+/// </summary>
 type NormalizeResult =
+    /// <summary>Normal form was reached.</summary>
     | NormalForm of Expr
+
+    /// <summary>Step limit was reached before normalization finished.</summary>
     | LimitReached of Expr
 
 let isIdentStart (c: char) = 
     Char.IsLetter(c) || c = '_'
 
 let isIdentChar (c: char) = 
-    Char.IsLetterOrDigit(c) || c = '_' || c = '\''  
+    Char.IsLetterOrDigit(c) || c = '_' || c = '\''
 
-/// Parses a lambda term from a string.
-///
-/// Accepted concrete syntax:
-/// - variable: x
-/// - abstraction: \x.body or λx.body
-/// - abstraction with several parameters: \x y z.body
-///   which is treated as \x.\y.\z.body
-/// - application: f x y
-///   which is parsed left-associatively as ((f x) y)
-/// - parentheses: ( ... )
-///
-/// Identifier rules:
-/// - the first character of an identifier must be a letter or '_';
-/// - subsequent characters may be letters, digits, '_', or '\''.
-///
-/// Separation rules:
-/// - identifiers in an application are separated by whitespace or parentheses;
-/// - parameters after '\' or 'λ' are separated by whitespace;
-/// - the parameter list is separated from the body by '.';
-/// - optional whitespace is allowed between tokens.
-///
-/// Returns:
-/// - Some expr if parsing succeeded and the whole input was consumed;
-/// - None if the input is empty, malformed, or contains an invalid suffix.
-///
-/// Examples of valid input:
-/// - "x"
-/// - "\x.x"
-/// - "\x y.x"
-/// - "f x y"
-/// - "(\x.x) y"
-///
-/// Examples of invalid input:
-/// - "\.x"
-/// - "\x."
-/// - "1x"
+/// <summary>
+/// Parses a lambda term.
+/// </summary>
+/// <param name="text">Input text.</param>
+/// <returns>
+/// Parsed expression, or <c>None</c> if parsing fails.
+/// </returns>
 let parse (text: string) : Expr option = 
     let n = text.Length
     
@@ -146,7 +113,7 @@ let parse (text: string) : Expr option =
     and parseAtom i =
         let i = skipSpaces i 
         if i < n then
-            if (text[i]) = '(' then
+            if text[i] = '(' then
                 match parseTerm (i + 1) with 
                 | Some(expr, j) ->
                     let j = skipSpaces j
@@ -156,7 +123,6 @@ let parse (text: string) : Expr option =
                         None
                 | None -> 
                     None
-
             else
                 match parseIdent i with
                 | Some (name, j) -> Some(Var name, j)
@@ -183,12 +149,17 @@ let parse (text: string) : Expr option =
     | Some(expr, i) when skipSpaces i = n -> Some expr
     | _ -> None
 
+/// <summary>
+/// Returns the set of free variables.
+/// </summary>
+/// <param name="expr">Expression.</param>
+/// <returns>Set of free variable names.</returns>
 let rec freeVars expr = 
     match expr with
     | Var x -> 
         Set.singleton x 
     | App (l, r) -> 
-        Set.union (freeVars l ) (freeVars r)
+        Set.union (freeVars l) (freeVars r)
     | Abs (x, body) ->
         Set.remove x (freeVars body)
 
@@ -203,7 +174,7 @@ let freshName baseName forbidden =
         else
             candidate
 
-    loop 0 
+    loop 0
 
 let rec renameBound oldName newName expr = 
     match expr with 
@@ -217,6 +188,13 @@ let rec renameBound oldName newName expr =
         else
             Abs(x, renameBound oldName newName body)
 
+/// <summary>
+/// Performs capture-avoiding substitution.
+/// </summary>
+/// <param name="expr">Expression in which substitution is performed.</param>
+/// <param name="varName">Variable to replace.</param>
+/// <param name="replacement">Replacement expression.</param>
+/// <returns>Expression after substitution.</returns>
 let rec substitute expr varName replacement =
     match expr with
     | Var x ->
@@ -235,8 +213,15 @@ let rec substitute expr varName replacement =
             let renamedBody = renameBound x xFresh body
             Abs(xFresh, substitute renamedBody varName replacement)
         else
-            Abs (x, substitute body varName replacement)
+            Abs(x, substitute body varName replacement)
 
+/// <summary>
+/// Performs one normal-order beta-reduction step.
+/// </summary>
+/// <param name="expr">Expression to reduce.</param>
+/// <returns>
+/// Reduced expression, or <c>None</c> if no reduction is possible.
+/// </returns>
 let rec reduceOnceNormal expr =
     match expr with
     | App(Abs(x, body), arg) ->
@@ -258,25 +243,14 @@ let rec reduceOnceNormal expr =
     | Var _ ->
         None
 
-/// Reduces a term using normal-order beta-reduction, but no more than `limit` steps.
-///
-/// Strategy:
-/// - the leftmost outermost redex is reduced first;
-/// - alpha-conversion is used during substitution to avoid capture of free variables.
-///
-/// Parameters:
-/// - limit: maximum number of beta-reduction steps to perform;
-/// - expr: the term to normalize.
-///
-/// Returns:
-/// - NormalForm expr if a normal form was reached within the limit;
-/// - LimitReached expr if the limit was exhausted before normalization finished,
-///   where expr is the last term produced.
-///
-/// Notes:
-/// - if the term has no normal form, this function does not loop forever;
-///   it stops after `limit` steps;
-/// - if `limit <= 0`, the result is immediately LimitReached expr.
+/// <summary>
+/// Normalizes an expression using normal-order beta-reduction.
+/// </summary>
+/// <param name="limit">Maximum number of reduction steps.</param>
+/// <param name="expr">Expression to normalize.</param>
+/// <returns>
+/// <c>NormalForm</c> if a normal form is reached; otherwise <c>LimitReached</c>.
+/// </returns>
 let rec normalizeWithLimit limit expr = 
     let rec loop steps current = 
         if steps <= 0 then 
@@ -288,19 +262,11 @@ let rec normalizeWithLimit limit expr =
 
     loop limit expr
 
-/// Converts an expression to its textual representation.
-///
-/// Output format:
-/// - variables are printed as their names;
-/// - abstractions are printed as \x.body;
-/// - applications are printed with left associativity;
-/// - parentheses are added only when needed to preserve structure.
-///
-/// Examples:
-/// - Var "x" -> "x"
-/// - Abs("x", Var "x") -> "\x.x"
-/// - App(Var "f", Var "x") -> "f x"
-/// - App(Abs("x", Var "x"), Var "y") -> "(\x.x) y"
+/// <summary>
+/// Converts an expression to text.
+/// </summary>
+/// <param name="expr">Expression to print.</param>
+/// <returns>Textual representation of the expression.</returns>
 let rec toString expr = 
     let rec go prec e =
         match e with
@@ -308,13 +274,18 @@ let rec toString expr =
             x
         | Abs(x, body) ->
             let s = "\\" + x + "." + go 0 body
-            if prec > 0  then ("(" + s + ")") else s
+            if prec > 0 then "(" + s + ")" else s
         | App(l, r) -> 
             let s = go 1 l + " " + go 2 r
             if prec > 1 then "(" + s + ")" else s
 
     go 0 expr
 
+/// <summary>
+/// Reads, parses, normalizes, and prints a lambda term.
+/// </summary>
+/// <param name="_">Command-line arguments.</param>
+/// <returns>Process exit code.</returns>
 [<EntryPoint>]
 let main _ =
     let input = Console.ReadLine()
