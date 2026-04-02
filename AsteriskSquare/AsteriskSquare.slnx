@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="AsteriskSquare/AsteriskSquare.fsproj" />
+  <Project Path="Tests/Tests.fsproj" />
+</Solution>
