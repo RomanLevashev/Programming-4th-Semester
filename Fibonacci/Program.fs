@@ -22,12 +22,31 @@ let fibonacci (n: int) : bigint =
     loop 0 0I 1I
 
 /// <summary>
+/// Parses one integer command-line argument.
+/// </summary>
+/// <param name="args">Command-line arguments.</param>
+/// <returns>
+/// Parsed integer wrapped in Some, or None if the arguments are invalid.
+/// </returns>
+let tryParseArgument (args: string array) : int option =
+    if args.Length <> 1 then
+        None
+    else
+        match Int32.TryParse args[0] with
+        | true, n -> Some n
+        | _ -> None
+
+/// <summary>
 /// Program entry point.
 /// </summary>
-/// <param name="_">Command-line arguments.</param>
+/// <param name="args">Command-line arguments: n.</param>
 /// <returns>Process exit code.</returns>
 [<EntryPoint>]
-let main _ =
-    let n = Console.ReadLine() |> int
-    printfn "%A" (fibonacci n)
-    0
+let main (args: string array) =
+    match tryParseArgument args with
+    | None ->
+        printfn "Expected one integer argument: n"
+        1
+    | Some n ->
+        printfn "%A" (fibonacci n)
+        0
