@@ -1,36 +1,30 @@
-﻿// <copyright file="Program.fs" company="Roman Levashev">
+// <copyright file="EvenNumbers.fs" company="Roman Levashev">
 // Copyright (c) Roman Levashev. All rights reserved.
 // Licensed under the MIT License.
 // </copyright>
 
 module EvenNumbers
 
+let private isEven x =
+    x % 2 = 0
+
 /// <summary>
 /// Counts even numbers using map and sum.
 /// </summary>
-/// <param name="xs">Input list.</param>
-/// <returns>Number of even elements.</returns>
-let mapCounter xs =
-    xs
-    |> List.map (fun x -> if x % 2 = 0 then 1 else 0)
-    |> List.sum
+/// <returns>Function that returns the number of even elements.</returns>
+let countEvenByMap =
+    List.map (fun x -> if isEven x then 1 else 0) >> List.sum
 
 /// <summary>
 /// Counts even numbers using filter and length.
 /// </summary>
-/// <param name="xs">Input list.</param>
-/// <returns>Number of even elements.</returns>
-let filterCounter xs =
-    xs
-    |> List.filter (fun x -> x % 2 = 0)
-    |> List.length
+/// <returns>Function that returns the number of even elements.</returns>
+let countEvenByFilter =
+    List.filter isEven >> List.length
 
 /// <summary>
 /// Counts even numbers using fold.
 /// </summary>
-/// <param name="xs">Input list.</param>
-/// <returns>Number of even elements.</returns>
-let foldCounter xs =
-    xs
-    |> List.fold (fun acc x -> acc + (if x % 2 = 0 then 1 else 0)) 0
-
+/// <returns>Function that returns the number of even elements.</returns>
+let countEvenByFold =
+    List.fold (fun acc x -> if isEven x then acc + 1 else acc) 0

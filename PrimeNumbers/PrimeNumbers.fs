@@ -1,4 +1,4 @@
-﻿// <copyright file="PrimeNumbers.fs" company="Roman Levashev">
+// <copyright file="PrimeNumbers.fs" company="Roman Levashev">
 // Copyright (c) Roman Levashev. All rights reserved.
 // Licensed under the MIT License.
 // </copyright>
@@ -20,4 +20,4 @@ let isPrime n =
 /// An infinite sequence of prime numbers starting from 2.
 /// </summary>
 let primes =
-    Seq.initInfinite (fun i -> i + 2) |> Seq.filter isPrime
+    Seq.initInfinite ((+) 2) |> Seq.filter isPrime

@@ -1,4 +1,4 @@
-﻿// <copyright file="Program.fs" company="Roman Levashev">
+// <copyright file="MapTree.fs" company="Roman Levashev">
 // Copyright (c) Roman Levashev. All rights reserved.
 // Licensed under the MIT License.
 // </copyright>
@@ -13,35 +13,19 @@ type Tree<'a> =
     | Empty
 
 /// <summary>
-/// Represents a command used by the tail-recursive tree mapping algorithm.
-/// </summary>
-type Cmd<'a, 'b> =
-    | Visit of Tree<'a>
-    | Build of 'b
-
-/// <summary>
-/// Maps a function over a tree using a tail-recursive algorithm.
-/// Returns Some mappedTree if the transformation succeeds.
+/// Maps a function over a tree using continuation-passing style.
 /// </summary>
 let mapTreeTail f tree =
-    let rec loop cmds acc =
-        match cmds, acc with
-        | [], [result] ->
-            Some result
+    let rec map tree continuation =
+        match tree with
+        | Empty ->
+            continuation Empty
+        | Node(x, left, right) ->
+            map left (fun mappedLeft ->
+                map right (fun mappedRight ->
+                    continuation (Node(f x, mappedLeft, mappedRight))))
 
-        | Visit Empty :: restCmds, _ ->
-            loop restCmds (Empty :: acc)
-
-        | Visit (Node(x, left, right)) :: restCmds, _ ->
-            loop (Visit left :: Visit right :: Build (f x) :: restCmds) acc
-
-        | Build y :: restCmds, rightMapped :: leftMapped :: restAcc ->
-            loop restCmds (Node(y, leftMapped, rightMapped) :: restAcc)
-
-        | _ ->
-            None
-
-    loop [Visit tree] []
+    map tree id
 
 /// <summary>
 /// Maps a function over a tree using a simple recursive algorithm.

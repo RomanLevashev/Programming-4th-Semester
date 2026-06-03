@@ -1,4 +1,4 @@
-﻿// <copyright file="Program.fs" company="Roman Levashev">
+// <copyright file="ParseTree.fs" company="Roman Levashev">
 // Copyright (c) Roman Levashev. All rights reserved.
 // Licensed under the MIT License.
 // </copyright>
@@ -22,59 +22,39 @@ and Operation =
     | Div of Expr * Expr
 
 /// <summary>
-/// Represents a command used by the tail-recursive expression evaluator.
-/// </summary>
-type Cmd =
-    | Visit of Expr
-    | DoAdd
-    | DoSub
-    | DoMul
-    | DoDiv
-
-/// <summary>
-/// Evaluates an expression using a tail-recursive algorithm.
+/// Evaluates an expression using continuation-passing style.
 /// Returns Some result if evaluation succeeds, or None if evaluation fails.
 /// </summary>
 let evalTail expr =
-    let rec loop cmds stack =
-        match cmds, stack with
-        | [], [result] ->
-            Some result
+    let rec eval expr continuation =
+        let evalBinary left right operation =
+            eval left (function
+                | None ->
+                    continuation None
+                | Some leftValue ->
+                    eval right (function
+                        | None ->
+                            continuation None
+                        | Some rightValue ->
+                            continuation (operation leftValue rightValue)))
 
-        | Visit (Num n) :: restCmds, _ ->
-            loop restCmds (n :: stack)
+        match expr with
+        | Num n ->
+            continuation (Some n)
+        | Op (Add(left, right)) ->
+            evalBinary left right (fun leftValue rightValue -> Some(leftValue + rightValue))
+        | Op (Sub(left, right)) ->
+            evalBinary left right (fun leftValue rightValue -> Some(leftValue - rightValue))
+        | Op (Mul(left, right)) ->
+            evalBinary left right (fun leftValue rightValue -> Some(leftValue * rightValue))
+        | Op (Div(left, right)) ->
+            evalBinary left right (fun leftValue rightValue ->
+                if rightValue = 0 then
+                    None
+                else
+                    Some(leftValue / rightValue))
 
-        | Visit (Op (Add (left, right))) :: restCmds, _ ->
-            loop (Visit left :: Visit right :: DoAdd :: restCmds) stack
-
-        | Visit (Op (Sub (left, right))) :: restCmds, _ ->
-            loop (Visit left :: Visit right :: DoSub :: restCmds) stack
-
-        | Visit (Op (Mul (left, right))) :: restCmds, _ ->
-            loop (Visit left :: Visit right :: DoMul :: restCmds) stack
-
-        | Visit (Op (Div (left, right))) :: restCmds, _ ->
-            loop (Visit left :: Visit right :: DoDiv :: restCmds) stack
-
-        | DoAdd :: restCmds, right :: left :: stackTail ->
-            loop restCmds ((left + right) :: stackTail)
-
-        | DoSub :: restCmds, right :: left :: stackTail ->
-            loop restCmds ((left - right) :: stackTail)
-
-        | DoMul :: restCmds, right :: left :: stackTail ->
-            loop restCmds ((left * right) :: stackTail)
-
-        | DoDiv :: restCmds, right :: left :: stackTail when right <> 0 ->
-            loop restCmds ((left / right) :: stackTail)
-
-        | DoDiv :: _, 0 :: _ ->
-            None
-
-        | _ ->
-            None
-
-    loop [Visit expr] []
+    eval expr id
 
 /// <summary>
 /// Evaluates an expression using a simple recursive algorithm.
@@ -84,19 +64,19 @@ let rec eval expr =
     match expr with
     | Num n ->
         Some n
-    | Op (Add (l, r)) ->
+    | Op (Add(l, r)) ->
         match eval l, eval r with
-        | Some a, Some b -> Some (a + b)
+        | Some a, Some b -> Some(a + b)
         | _ -> None
-    | Op (Sub (l, r)) ->
+    | Op (Sub(l, r)) ->
         match eval l, eval r with
-        | Some a, Some b -> Some (a - b)
+        | Some a, Some b -> Some(a - b)
         | _ -> None
-    | Op (Mul (l, r)) ->
+    | Op (Mul(l, r)) ->
         match eval l, eval r with
-        | Some a, Some b -> Some (a * b)
+        | Some a, Some b -> Some(a * b)
         | _ -> None
-    | Op (Div (l, r)) ->
+    | Op (Div(l, r)) ->
         match eval l, eval r with
-        | Some a, Some b when b <> 0 -> Some (a / b)
+        | Some a, Some b when b <> 0 -> Some(a / b)
         | _ -> None
