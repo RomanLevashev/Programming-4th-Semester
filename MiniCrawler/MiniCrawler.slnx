@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="MiniCrawler.fsproj" />
+  <Project Path="Tests/Tests.fsproj" />
+</Solution>
