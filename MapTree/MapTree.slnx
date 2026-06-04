@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="MapTree.fsproj" />
+  <Project Path="Tests/Tests.fsproj" />
+</Solution>

@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="EvenNumbers.fsproj" />
+  <Project Path="Tests/Tests.fsproj" />
+</Solution>
