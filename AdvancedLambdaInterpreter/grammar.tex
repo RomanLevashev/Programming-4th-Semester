@@ -1,0 +1,179 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[russian]{babel}
+\usepackage{amsmath,amssymb}
+\usepackage{geometry}
+\geometry{margin=2.2cm}
+
+\begin{document}
+
+\section*{Грамматика продвинутого лямбда-интерпретатора}
+
+\subsection*{Требования к языку}
+
+Входная программа состоит из набора именованных определений и одного
+лямбда-выражения. Каждое определение записывается на отдельной
+непустой строке и имеет вид
+\begin{verbatim}
+let name = expression
+\end{verbatim}
+и могут использоваться в последующем выражении как обычные переменные.
+Слово \verb|let| является ключевым словом и не может быть именем
+переменной или определения.
+
+Лямбда обозначается символом \verb|\|. Должны поддерживаться
+абстракции с несколькими параметрами:
+\begin{verbatim}
+\x y z. expression
+\end{verbatim}
+Такая запись является сокращением для вложенных абстракций:
+\[
+\lambda x.\lambda y.\lambda z.\ expression.
+\]
+
+\subsection*{Лексические правила}
+
+Пробельные символы между токенами игнорируются. Идентификатор начинается
+с буквы, далее могут идти буквы, цифры, апостроф и символ подчеркивания.
+Ключевое слово \verb|let| исключается из множества идентификаторов.
+
+\begin{verbatim}
+letter      ::= "a" | ... | "z" | "A" | ... | "Z"
+digit       ::= "0" | ... | "9"
+identifier  ::= letter (letter | digit | "'" | "_")*
+\end{verbatim}
+
+\subsection*{Факторизованная грамматика}
+
+Грамматика записана в EBNF. Оператор $+$ означает <<один или больше>>,
+оператор $*$ используется только в лексическом правиле идентификатора.
+В синтаксической части нет явных $\varepsilon$-продукций.
+
+\begin{verbatim}
+program           ::= definition* expression
+definition        ::= "let" identifier "=" expression lineEnd
+expression        ::= abstraction | applicationChain
+abstraction       ::= "\" identifier+ "." expression
+applicationChain  ::= atom+
+atom              ::= identifier | "(" expression ")"
+lineEnd           ::= end of current non-empty line
+\end{verbatim}
+
+\subsection*{Почему грамматика подходит для парсера}
+
+В исходной грамматике аппликация естественно записывается как
+\[
+term ::= term\ term,
+\]
+что дает левую рекурсию. Для FParsec и рекурсивного спуска такая форма
+неподходящая: парсер \verb|term| немедленно вызывает сам себя без
+потребления входа.
+
+В предложенной грамматике аппликация заменена на цепочку атомов:
+\[
+applicationChain ::= atom^+.
+\]
+Такой нетерминал парсится как \verb|many1 atom|. Если в цепочке один
+атом, результатом является сам атом. Если атомов несколько, AST строится
+левоассоциативно:
+\[
+a\ b\ c \equiv ((a\ b)\ c).
+\]
+
+Альтернативы в правиле \verb|expression| различаются первым токеном:
+абстракция начинается с \verb|\|, а цепочка аппликации начинается с
+идентификатора или открывающей скобки. Поэтому правило удобно реализовать
+через \verb|choice| без попыток угадывать одинаковые префиксы.
+
+Разделение определений по строкам нужно для однозначности. Без этого
+запись
+\begin{verbatim}
+let K = \x y.x
+S K K
+\end{verbatim}
+можно было бы прочитать как одно определение с телом \verb|\x y.x S K K|.
+Поэтому на уровне программы непустые строки, начинающиеся с ключевого
+слова \verb|let|, считаются определениями, а оставшиеся строки образуют
+итоговое выражение.
+
+\subsection*{Построение AST}
+
+Для дальнейшей реализации удобно использовать тот же базовый AST, что и в
+предыдущей задаче:
+\[
+\begin{array}{rcl}
+Expr & ::= & Var(name) \\
+     & \mid & Abs(name,\ Expr) \\
+     & \mid & App(Expr,\ Expr)
+\end{array}
+\]
+
+Именованные определения могут храниться отдельно в таблице
+\[
+name \mapsto Expr.
+\]
+Перед нормализацией входного выражения имена из таблицы можно раскрыть
+или учитывать их при редукции как заранее заданные переменные.
+
+Абстракция с несколькими параметрами строится как последовательность
+вложенных \verb|Abs|. Например:
+\begin{verbatim}
+\x y.x  ->  Abs(x, Abs(y, Var(x)))
+\end{verbatim}
+
+Цепочка аппликации строится левым сворачиванием. Например:
+\begin{verbatim}
+S K K  ->  App(App(Var(S), Var(K)), Var(K))
+\end{verbatim}
+
+\subsection*{Пример 1}
+
+Вход:
+\begin{verbatim}
+let S = \x y z.x z (y z)
+let K = \x y.x
+
+S K K
+\end{verbatim}
+
+Разбор определений:
+\[
+\begin{array}{rcl}
+S & \mapsto & Abs(x,\ Abs(y,\ Abs(z,\ App(App(Var(x), Var(z)),
+                 App(Var(y), Var(z)))))) \\
+K & \mapsto & Abs(x,\ Abs(y,\ Var(x)))
+\end{array}
+\]
+
+Разбор итогового выражения:
+\begin{verbatim}
+S K K  ->  App(App(Var(S), Var(K)), Var(K))
+\end{verbatim}
+
+После раскрытия определений и бета-редукции ожидаемый результат:
+\begin{verbatim}
+\x.x
+\end{verbatim}
+или любой альфа-эквивалентный терм.
+
+\subsection*{Пример 2}
+
+Вход:
+\begin{verbatim}
+let I = \x.x
+
+(\x.x) I
+\end{verbatim}
+
+Разбор итогового выражения:
+\begin{verbatim}
+(\x.x) I  ->  App(Abs(x, Var(x)), Var(I))
+\end{verbatim}
+
+После раскрытия определения \verb|I| и бета-редукции:
+\begin{verbatim}
+\x.x
+\end{verbatim}
+
+\end{document}
