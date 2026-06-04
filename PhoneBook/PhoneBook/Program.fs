@@ -10,13 +10,14 @@ open PhoneBookStorage
 /// </summary>
 type Command =
     | Exit
-    | Add
-    | FindPhone
-    | FindName
+    | Add of Name * PhoneNumber
+    | FindPhone of Name
+    | FindName of PhoneNumber
     | ShowAll
-    | Save
-    | Load
+    | Save of string
+    | Load of string
     | Help
+    | Unknown
 
 /// <summary>
 /// Reads a line from the console.
@@ -29,32 +30,46 @@ let readLineOrEmpty () =
 
 /// <summary>
 /// Parses a user input string into a command.
-/// Returns Help for an unknown command.
 /// </summary>
 let parseCommand (input: string) =
-    match input.Trim().ToLowerInvariant() with
-    | "0" | "exit" -> Exit
-    | "1" | "add" -> Add
-    | "2" | "find-phone" -> FindPhone
-    | "3" | "find-name" -> FindName
-    | "4" | "show" -> ShowAll
-    | "5" | "save" -> Save
-    | "6" | "load" -> Load
-    | _ -> Help
+    let parts =
+        input.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries)
+        |> Array.map (fun part -> part.Trim())
+
+    match parts with
+    | [| "0" |]
+    | [| "exit" |] ->
+        Exit
+    | [| "help" |] ->
+        Help
+    | [| "add"; name; phone |] ->
+        Add(Name name, PhoneNumber phone)
+    | [| "find"; "phone"; "by"; name |] ->
+        FindPhone(Name name)
+    | [| "find"; "name"; "by"; phone |] ->
+        FindName(PhoneNumber phone)
+    | [| "show" |] ->
+        ShowAll
+    | [| "save"; path |] ->
+        Save path
+    | [| "load"; path |] ->
+        Load path
+    | _ ->
+        Unknown
 
 /// <summary>
 /// Prints the list of available commands.
 /// </summary>
-let printMenu () =
-    printfn ""
-    printfn "0 - exit"
-    printfn "1 - add entry"
-    printfn "2 - find phone by name"
-    printfn "3 - find name by phone"
-    printfn "4 - show all entries"
-    printfn "5 - save to file"
-    printfn "6 - load from file"
-    printf "Choose command: "
+let printHelp () =
+    printfn "Commands:"
+    printfn "  add <name> <phone>"
+    printfn "  find phone by <name>"
+    printfn "  find name by <phone>"
+    printfn "  show"
+    printfn "  save <path>"
+    printfn "  load <path>"
+    printfn "  help"
+    printfn "  exit"
 
 /// <summary>
 /// Prints all phone book entries.
@@ -66,47 +81,36 @@ let printAll book =
     | entries ->
         entries
         |> List.iter (fun (name, phone) ->
-            printfn "%s -> %s" name phone)
+            printfn "%s -> %s" (nameToString name) (phoneNumberToString phone))
 
 /// <summary>
 /// Runs the main console loop.
 /// </summary>
 let rec loop book =
-    printMenu ()
+    printf "> "
 
     match readLineOrEmpty () |> parseCommand with
     | Exit ->
         printfn "Goodbye."
 
-    | Add ->
-        printf "Enter name: "
-        let name = readLineOrEmpty ()
-        printf "Enter phone: "
-        let phone = readLineOrEmpty ()
-
+    | Add(name, phone) ->
         let newBook = add name phone book
         printfn "Entry added."
         loop newBook
 
-    | FindPhone ->
-        printf "Enter name: "
-        let name = readLineOrEmpty ()
-
+    | FindPhone name ->
         match tryFindPhone name book with
         | Some phone ->
-            printfn "Phone: %s" phone
+            printfn "Phone: %s" (phoneNumberToString phone)
         | None ->
             printfn "Entry not found."
 
         loop book
 
-    | FindName ->
-        printf "Enter phone: "
-        let phone = readLineOrEmpty ()
-
+    | FindName phone ->
         match tryFindName phone book with
         | Some name ->
-            printfn "Name: %s" name
+            printfn "Name: %s" (nameToString name)
         | None ->
             printfn "Entry not found."
 
@@ -116,10 +120,7 @@ let rec loop book =
         printAll book
         loop book
 
-    | Save ->
-        printf "Enter file path: "
-        let path = readLineOrEmpty ()
-
+    | Save path ->
         try
             saveToFile path book
             printfn "Data saved."
@@ -129,10 +130,7 @@ let rec loop book =
 
         loop book
 
-    | Load ->
-        printf "Enter file path: "
-        let path = readLineOrEmpty ()
-
+    | Load path ->
         try
             match loadFromFile path with
             | Some loadedBook ->
@@ -147,14 +145,13 @@ let rec loop book =
             loop book
 
     | Help ->
-        printfn "Unknown command."
+        printHelp ()
         loop book
 
-/// <summary>
-/// Program entry point.
-/// </summary>
-[<EntryPoint>]
-let main _ =
-    printfn "Phone book"
-    loop empty
-    0
+    | Unknown ->
+        printfn "Unknown command. Type 'help' to see available commands."
+        loop book
+
+printfn "Phone book"
+printHelp ()
+loop empty

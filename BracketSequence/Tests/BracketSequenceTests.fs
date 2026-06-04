@@ -1,14 +1,13 @@
-﻿// ﻿<copyright file="Tests.fs" company="Roman Levashev">
+// <copyright file="BracketSequenceTests.fs" company="Roman Levashev">
 // Copyright (c) Roman Levashev. All rights reserved.
 // Licensed under the MIT License.
 // </copyright>
 
+module BracketSequence.Tests
 
-module Tests
-
-open Xunit
-open FsUnit.Xunit
 open BracketSequence
+open FsUnit.Xunit
+open Xunit
 
 [<Theory>]
 [<InlineData("", true)>]
