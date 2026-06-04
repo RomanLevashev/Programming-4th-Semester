@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="LocalNetwork/LocalNetwork.fsproj" />
+  <Project Path="Tests/Tests.fsproj" />
+</Solution>
