@@ -6,6 +6,7 @@
 module Tests
 
 open EvenNumbers
+open FsCheck
 open FsUnit.Xunit
 open Xunit
 
@@ -28,8 +29,11 @@ let ``counters count all even numbers`` () =
     |> List.iter (fun countEven -> countEven [ -4; -3; 0; 7; 10; 11 ] |> should equal 3)
 
 [<Fact>]
-let ``all implementations return the same count`` () =
-    let xs = [ -10 .. 25 ]
+let ``all implementations return the same count for any list`` () =
+    let implementationsAreEquivalent (xs: int list) =
+        let expected = countEvenByFilter xs
 
-    countEvenByMap xs |> should equal (countEvenByFilter xs)
-    countEvenByFold xs |> should equal (countEvenByFilter xs)
+        countEvenByMap xs = expected
+        && countEvenByFold xs = expected
+
+    Check.QuickThrowOnFailure implementationsAreEquivalent
