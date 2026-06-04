@@ -1,0 +1,54 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[russian]{babel}
+\usepackage{amsmath,amssymb}
+\usepackage{geometry}
+\geometry{margin=2.2cm}
+
+\begin{document}
+
+\textbf{Задача.} Доказать, что
+\[
+S\,K\,K = I.
+\]
+
+\[
+S \equiv \lambda x\,y\,z.\, x\,z\,(y\,z),
+\qquad
+K \equiv \lambda x\,y.\,x,
+\qquad
+I \equiv \lambda x.\,x.
+\]
+
+\[
+S\,K\,K
+=
+((\lambda x\,y\,z.\, x\,z\,(y\,z))\,(\lambda x\,y.\,x))\,(\lambda x\,y.\,x)
+\]
+
+\[
+\to_\beta
+(\lambda y\,z.\, (\lambda x\,y.\,x)\,z\,(y\,z))\,(\lambda x\,y.\,x)
+\]
+
+\[
+\to_\beta
+\lambda z.\, (\lambda x\,y.\,x)\,z\,((\lambda x\,y.\,x)\,z)
+\]
+
+\[
+\to_\beta
+\lambda z.\, (\lambda y.\,z)\,((\lambda x\,y.\,x)\,z)
+\]
+
+\[
+\to_\beta
+\lambda z.\, z
+\]
+
+\[
+= I
+\]
+
+\end{document}

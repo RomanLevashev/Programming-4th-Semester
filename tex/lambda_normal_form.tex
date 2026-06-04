@@ -1,0 +1,66 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[russian]{babel}
+\usepackage{amsmath,amssymb}
+\usepackage{geometry}
+\geometry{margin=2.2cm}
+
+\begin{document}
+
+\textbf{Задача.} Привести к нормальной форме $\lambda$-терм
+\[
+((\lambda a.(\lambda b.\, b\, b)\ (\lambda b.\, b\, b))\ b)\ ((\lambda c.\,(c\, b))\ (\lambda a.\, a)).
+\]
+
+Для удобства обозначим
+\[
+\Omega = (\lambda b.\, b\, b)\ (\lambda b.\, b\, b).
+\]
+
+Тогда  терм можно записать так:
+\[
+((\lambda a.\, \Omega)\ b)\ ((\lambda c.\,(c\, b))\ (\lambda a.\, a)).
+\]
+
+Рассматриваем редекс
+\[
+(\lambda a.\,\Omega)\,b.
+\]
+
+Тогда
+\[
+(\lambda a.\,\Omega)\,b \to_\beta \Omega[a:=b]=\Omega.
+\]
+
+Поэтому
+\[
+((\lambda a.\,\Omega)\,b)\ ((\lambda c.\,(c\, b))\ (\lambda a.\, a))
+\to_\beta
+\Omega\ ((\lambda c.\,(c\, b))\ (\lambda a.\, a)).
+\]
+
+Теперь посмотрим на $\Omega$:
+\[
+\Omega = (\lambda b.\, b\, b)\ (\lambda b.\, b\, b).
+\]
+
+Если выполнить $\beta$-редукцию, получится
+\[
+(\lambda b.\, b\, b)\ (\lambda b.\, b\, b)
+\to_\beta
+(\lambda b.\, b\, b)\ (\lambda b.\, b\, b).
+\]
+
+То есть снова получается то же самое выражение. Значит,
+\[
+\Omega \to_\beta \Omega,
+\]
+и этот процесс будет повторяться бесконечно.
+
+
+Следовательно, исходный $\lambda$-терм не приводится к нормальной форме.
+
+\textbf{Ответ:} нормальной формы нет.
+
+\end{document}
