@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="PhoneBook/PhoneBook.fsproj" />
+  <Project Path="Tests/Tests.fsproj" />
+</Solution>

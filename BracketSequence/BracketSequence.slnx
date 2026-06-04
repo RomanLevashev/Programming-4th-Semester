@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="BracketSequence/BracketSequence.fsproj" />
+  <Project Path="Tests/Tests.fsproj" />
+</Solution>
