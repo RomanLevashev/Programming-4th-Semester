@@ -1,4 +1,4 @@
-// <copyright file="Tests.fs" company="Roman Levashev">
+// <copyright file="LocalNetworkTests.fs" company="Roman Levashev">
 // Copyright (c) Roman Levashev. All rights reserved.
 // Licensed under the MIT License.
 // </copyright>
@@ -24,12 +24,15 @@ type MockRandomSource(values: float list) =
             | [] ->
                 failwith "MockRandomSource ran out of predefined values."
 
+let private os name probability =
+    OperatingSystem(name, probability) :> IOperatingSystem
+
 let createChainNetwork probabilityForAll =
     let computers =
         [|
-            Computer(0, Windows, true)
-            Computer(1, Linux, false)
-            Computer(2, MacOS, false)
+            Computer(0, os "Windows" probabilityForAll, true)
+            Computer(1, os "Linux" probabilityForAll, false)
+            Computer(2, os "MacOS" probabilityForAll, false)
         |]
 
     let links =
@@ -38,25 +41,16 @@ let createChainNetwork probabilityForAll =
               [ true; false; true ]
               [ false; true; false ] ]
 
-    let probabilities =
-        InfectionProbability(
-            Map.ofList
-                [ Windows, probabilityForAll
-                  Linux, probabilityForAll
-                  MacOS, probabilityForAll ]
-        )
-
-    Network(computers, links, probabilities)
+    Network(computers, links)
 
 [<Fact>]
 let ``infection with probability one spreads by layers`` () =
     let network = createChainNetwork 1.0
-    let random = MockRandomSource([ 0.0; 0.0; 0.0 ]) :> IRandomSource
+    let random = MockRandomSource([ 0.0; 0.0 ]) :> IRandomSource
 
-    let states = network.SimulateUntilStable(random)
+    let states = network.Simulate(random) |> Seq.toList
 
     states.Length |> should equal 2
-
     states[0] |> should equal [| true; true; false |]
     states[1] |> should equal [| true; true; true |]
 
@@ -73,20 +67,31 @@ let ``newly infected computer does not infect further in same step`` () =
 [<Fact>]
 let ``infection with probability zero never spreads`` () =
     let network = createChainNetwork 0.0
-    let random = MockRandomSource([ 0.0; 0.0; 0.0 ]) :> IRandomSource
+    let random = MockRandomSource([]) :> IRandomSource
 
-    let states = network.SimulateUntilStable(random)
+    let states = network.Simulate(random) |> Seq.toList
 
     states.Length |> should equal 0
     network.Snapshot() |> should equal [| true; false; false |]
 
 [<Fact>]
+let ``simulation does not stop after unlucky failed infection attempt`` () =
+    let network = createChainNetwork 0.5
+    let random = MockRandomSource([ 0.9; 0.0; 0.0 ]) :> IRandomSource
+
+    let states = network.Simulate(random) |> Seq.take 3 |> Seq.toList
+
+    states[0] |> should equal [| true; false; false |]
+    states[1] |> should equal [| true; true; false |]
+    states[2] |> should equal [| true; true; true |]
+
+[<Fact>]
 let ``disconnected computers are never infected`` () =
     let computers =
         [|
-            Computer(0, Windows, true)
-            Computer(1, Linux, false)
-            Computer(2, MacOS, false)
+            Computer(0, os "Windows" 1.0, true)
+            Computer(1, os "Linux" 1.0, false)
+            Computer(2, os "MacOS" 1.0, false)
         |]
 
     let links =
@@ -95,18 +100,15 @@ let ``disconnected computers are never infected`` () =
               [ true; false; false ]
               [ false; false; false ] ]
 
-    let probabilities =
-        InfectionProbability(
-            Map.ofList
-                [ Windows, 1.0
-                  Linux, 1.0
-                  MacOS, 1.0 ]
-        )
+    let network = Network(computers, links)
+    let random = MockRandomSource([ 0.0 ]) :> IRandomSource
 
-    let network = Network(computers, links, probabilities)
-    let random = MockRandomSource([ 0.0; 0.0 ]) :> IRandomSource
-
-    let states = network.SimulateUntilStable(random)
+    let states = network.Simulate(random) |> Seq.toList
 
     states.Length |> should equal 1
     states[0] |> should equal [| true; true; false |]
+
+[<Fact>]
+let ``operating system validates infection probability`` () =
+    (fun () -> OperatingSystem("BrokenOS", 1.5) |> ignore)
+    |> should throw typeof<System.ArgumentException>
