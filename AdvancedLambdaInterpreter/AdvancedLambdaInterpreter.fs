@@ -31,13 +31,19 @@ type Definition =
     }
 
 /// <summary>
+/// A program statement.
+/// </summary>
+type Statement =
+    /// <summary>Named expression definition.</summary>
+    | DefinitionStatement of Definition
+
+    /// <summary>Expression to evaluate.</summary>
+    | ExpressionStatement of Expr
+
+/// <summary>
 /// Parsed input program.
 /// </summary>
-type Program =
-    {
-        Definitions: Definition list
-        Expression: Expr
-    }
+type Program = { Statements: Statement list }
 
 /// <summary>
 /// Result of normalization with a step limit.
@@ -52,31 +58,6 @@ type NormalizeResult =
 let private ws = spaces
 let private str s = pstring s .>> ws
 let private ch c = pchar c .>> ws
-
-let private resultOk value =
-    Microsoft.FSharp.Core.Ok value
-
-let private resultError error =
-    Microsoft.FSharp.Core.Error error
-
-let private resultMap mapper result =
-    match result with
-    | Microsoft.FSharp.Core.Ok value -> resultOk (mapper value)
-    | Microsoft.FSharp.Core.Error error -> resultError error
-
-let private resultBind binder result =
-    match result with
-    | Microsoft.FSharp.Core.Ok value -> binder value
-    | Microsoft.FSharp.Core.Error error -> resultError error
-
-let private resultMap2 mapper first second =
-    match first, second with
-    | Microsoft.FSharp.Core.Ok firstValue, Microsoft.FSharp.Core.Ok secondValue ->
-        resultOk (mapper firstValue secondValue)
-    | Microsoft.FSharp.Core.Error error, _ ->
-        resultError error
-    | _, Microsoft.FSharp.Core.Error error ->
-        resultError error
 
 let private isIdentifierStart c =
     isLetter c
@@ -114,7 +95,13 @@ let private atomParser =
     <|> between (ch '(') (ch ')') expressionParser
 
 let private applicationParser =
-    many1 atomParser |>> makeApplications
+    pipe2
+        (many1 atomParser)
+        (opt abstractionParser)
+        (fun atoms trailingAbstraction ->
+            match trailingAbstraction with
+            | Some abstraction -> makeApplications (atoms @ [ abstraction ])
+            | None -> makeApplications atoms)
 
 do
     expressionParserRef.Value <-
@@ -149,9 +136,9 @@ let private isDefinitionLine (line: string) =
 let private parseWith parser input =
     match run parser input with
     | Success(value, _, _) ->
-        resultOk value
+        Microsoft.FSharp.Core.Ok value
     | Failure(errorMessage, _, _) ->
-        resultError errorMessage
+        Microsoft.FSharp.Core.Error errorMessage
 
 let private splitProgramLines (input: string) =
     input.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n')
@@ -165,62 +152,35 @@ let private parseDefinitionLine line =
 let private parseExpressionText text =
     parseWith expressionOnlyParser text
 
+let private parseStatementLine line =
+    if isDefinitionLine line then
+        parseDefinitionLine line |> Result.map DefinitionStatement
+    else
+        parseExpressionText line |> Result.map ExpressionStatement
+
 /// <summary>
 /// Parses a lambda interpreter program.
 /// </summary>
 let parseProgram input =
-    let rec splitDefinitions definitions remainingLines =
+    let rec parseStatements statements remainingLines =
         match remainingLines with
-        | line :: tail when isDefinitionLine line ->
-            parseDefinitionLine line
-            |> resultBind (fun definition -> splitDefinitions (definition :: definitions) tail)
-        | _ ->
-            resultOk (List.rev definitions, remainingLines)
+        | [] ->
+            Microsoft.FSharp.Core.Ok { Statements = List.rev statements }
+        | line :: tail ->
+            parseStatementLine line
+            |> Result.bind (fun statement -> parseStatements (statement :: statements) tail)
 
     splitProgramLines input
-    |> splitDefinitions []
-    |> resultBind (fun (definitions, expressionLines) ->
-        match expressionLines with
-        | [] ->
-            resultError "Expected final expression."
-        | _ ->
-            expressionLines
-            |> String.concat " "
-            |> parseExpressionText
-            |> resultMap (fun expression ->
-                {
-                    Definitions = definitions
-                    Expression = expression
-                }))
-
-let private collectDuplicates names =
-    names
-    |> List.countBy id
-    |> List.choose (fun (name, count) -> if count > 1 then Some name else None)
-
-let private buildDefinitionMap definitions =
-    let duplicates = definitions |> List.map (fun definition -> definition.Name) |> collectDuplicates
-
-    match duplicates with
-    | [] ->
-        definitions
-        |> List.map (fun definition -> definition.Name, definition.Expression)
-        |> Map.ofList
-        |> resultOk
-    | _ ->
-        duplicates
-        |> String.concat ", "
-        |> sprintf "Duplicate definitions: %s"
-        |> resultError
+    |> parseStatements []
 
 let private expandDefinitions definitions expression =
     let rec expandDefinition seen name =
         match Map.tryFind name definitions with
         | None ->
-            resultOk (Var name)
+            Microsoft.FSharp.Core.Ok(Var name)
         | Some expression ->
             if Set.contains name seen then
-                resultError (sprintf "Cyclic definition found for '%s'." name)
+                Microsoft.FSharp.Core.Error(sprintf "Cyclic definition found for '%s'." name)
             else
                 expand (Set.add name seen) Set.empty expression
 
@@ -228,14 +188,17 @@ let private expandDefinitions definitions expression =
         match expression with
         | Var name ->
             if Set.contains name bound then
-                resultOk expression
+                Microsoft.FSharp.Core.Ok expression
             else
                 expandDefinition seen name
         | App(left, right) ->
-            resultMap2 (fun newLeft newRight -> App(newLeft, newRight)) (expand seen bound left) (expand seen bound right)
+            expand seen bound left
+            |> Result.bind (fun newLeft ->
+                expand seen bound right
+                |> Result.map (fun newRight -> App(newLeft, newRight)))
         | Abs(parameter, body) ->
             expand seen (Set.add parameter bound) body
-            |> resultMap (fun newBody -> Abs(parameter, newBody))
+            |> Result.map (fun newBody -> Abs(parameter, newBody))
 
     expand Set.empty Set.empty expression
 
@@ -347,24 +310,40 @@ let toString expression =
     loop 0 expression
 
 /// <summary>
-/// Parses, expands named definitions and normalizes a program.
+/// Expands named definitions and normalizes every expression in a program.
 /// </summary>
 let interpretProgramWithLimit limit program =
-    buildDefinitionMap program.Definitions
-    |> resultBind (fun definitions -> expandDefinitions definitions program.Expression)
-    |> resultBind (fun expression ->
-        match normalizeWithLimit limit expression with
-        | NormalForm normalForm ->
-            resultOk (toString normalForm)
-        | LimitReached lastExpression ->
-            resultError (sprintf "Reduction limit reached at: %s" (toString lastExpression)))
+    let rec interpret statements definitions output =
+        match statements with
+        | [] ->
+            output
+            |> List.rev
+            |> String.concat System.Environment.NewLine
+            |> Microsoft.FSharp.Core.Ok
+        | DefinitionStatement definition :: tail ->
+            if Map.containsKey definition.Name definitions then
+                Microsoft.FSharp.Core.Error(sprintf "Duplicate definition: %s" definition.Name)
+            else
+                interpret tail (Map.add definition.Name definition.Expression definitions) output
+        | ExpressionStatement expression :: tail ->
+            expandDefinitions definitions expression
+            |> Result.bind (fun expandedExpression ->
+                match normalizeWithLimit limit expandedExpression with
+                | NormalForm normalForm ->
+                    interpret tail definitions (toString normalForm :: output)
+                | LimitReached lastExpression ->
+                    Microsoft.FSharp.Core.Error(
+                        sprintf "Reduction limit reached at: %s" (toString lastExpression)
+                    ))
+
+    interpret program.Statements Map.empty []
 
 /// <summary>
 /// Parses and normalizes a program from a string.
 /// </summary>
 let interpretStringWithLimit limit input =
     parseProgram input
-    |> resultBind (interpretProgramWithLimit limit)
+    |> Result.bind (interpretProgramWithLimit limit)
 
 /// <summary>
 /// Parses and normalizes a program from a string.

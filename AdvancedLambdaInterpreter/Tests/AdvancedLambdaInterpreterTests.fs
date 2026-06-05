@@ -17,12 +17,18 @@ let private interpret input =
     | Error error ->
         failwith error
 
+let private getSingleExpression program =
+    match program.Statements with
+    | [ ExpressionStatement expression ] ->
+        expression
+    | statements ->
+        failwithf "Expected one expression statement, got %d statements." statements.Length
+
 [<Fact>]
 let ``parser handles multi-parameter abstraction`` () =
     match parseProgram "\\x y.x" with
     | Ok program ->
-        Assert.Empty program.Definitions
-        Assert.Equal(Abs("x", Abs("y", Var "x")), program.Expression)
+        Assert.Equal(Abs("x", Abs("y", Var "x")), getSingleExpression program)
     | Error error ->
         failwith error
 
@@ -30,8 +36,24 @@ let ``parser handles multi-parameter abstraction`` () =
 let ``parser builds application as left associative`` () =
     match parseProgram "S K K" with
     | Ok program ->
-        Assert.Empty program.Definitions
-        Assert.Equal(App(App(Var "S", Var "K"), Var "K"), program.Expression)
+        Assert.Equal(App(App(Var "S", Var "K"), Var "K"), getSingleExpression program)
+    | Error error ->
+        failwith error
+
+[<Fact>]
+let ``parser accepts empty program`` () =
+    match parseProgram "" with
+    | Ok program ->
+        Assert.Empty program.Statements
+    | Error error ->
+        failwith error
+
+[<Fact>]
+let ``parser accepts abstraction as final application argument`` () =
+    match parseProgram "A B \\x.y" with
+    | Ok program ->
+        let expected = App(App(Var "A", Var "B"), Abs("x", Var "y"))
+        Assert.Equal(expected, getSingleExpression program)
     | Error error ->
         failwith error
 
@@ -54,6 +76,19 @@ let ``interpreter reduces S K K example`` () =
         """
 
     interpret input |> should equal "\\z.z"
+
+[<Fact>]
+let ``definitions and expressions can be interleaved`` () =
+    let input =
+        """
+        let I = \x.x
+        I q
+        let K = \x y.x
+        K I
+        """
+
+    interpret input
+    |> should equal ("q" + System.Environment.NewLine + "\\y.\\x.x")
 
 [<Fact>]
 let ``interpreter reads input from file`` () =
