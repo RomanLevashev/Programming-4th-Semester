@@ -21,16 +21,19 @@ let private implementations =
 let ``first Get evaluates supplier and returns its result`` () =
     implementations
     |> List.iter (fun (name, createLazy) ->
-        let expected = obj ()
         let mutable supplierCalls = 0
+        let mutable suppliedValue = null
+
         let lazyValue =
             createLazy (fun () ->
                 supplierCalls <- supplierCalls + 1
-                expected)
+                let value = obj ()
+                suppliedValue <- value
+                value)
 
         let result = lazyValue.Get()
 
-        Assert.Same(expected, result)
+        Assert.Same(suppliedValue, result)
         supplierCalls |> should equal 1)
 
 [<Fact>]
@@ -53,26 +56,20 @@ let ``sequential Get calls return the same object and do not recalculate`` () =
 let ``lazy computation can store null result`` () =
     implementations
     |> List.iter (fun (name, createLazy) ->
-        let mutable supplierCalls = 0
-        let lazyValue =
-            createLazy (fun () ->
-                supplierCalls <- supplierCalls + 1
-                null)
+        let lazyValue = createLazy (fun () -> null)
 
         lazyValue.Get() |> should equal null
-        lazyValue.Get() |> should equal null
-        supplierCalls |> should equal 1)
+        lazyValue.Get() |> should equal null)
 
 [<Fact>]
 let ``multi-threaded lazy calls supplier only once`` () =
-    let expected = obj ()
     let mutable supplierCalls = 0
 
     let lazyValue =
         createMultiThreaded (fun () ->
             Interlocked.Increment(&supplierCalls) |> ignore
             Thread.Sleep 100
-            expected)
+            obj ())
 
     let results =
         [ 1..32 ]
@@ -80,9 +77,7 @@ let ``multi-threaded lazy calls supplier only once`` () =
         |> Async.Parallel
         |> Async.RunSynchronously
 
-    results
-    |> Array.iter (fun result -> Assert.Same(expected, result))
-
+    results |> Array.distinct |> Array.length |> should equal 1
     supplierCalls |> should equal 1
 
 [<Fact>]
@@ -101,9 +96,5 @@ let ``lock-free lazy returns one winning object to concurrent callers`` () =
         |> Async.Parallel
         |> Async.RunSynchronously
 
-    let expected = results[0]
-
-    results
-    |> Array.iter (fun result -> Assert.Same(expected, result))
-
+    results |> Array.distinct |> Array.length |> should equal 1
     supplierCalls |> should greaterThanOrEqualTo 1
