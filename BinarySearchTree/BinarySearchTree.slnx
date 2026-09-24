@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="BinarySearchTree.fsproj" />
+  <Project Path="Tests/Tests.fsproj" />
+</Solution>
